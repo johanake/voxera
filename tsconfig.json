@@ -15,7 +15,9 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
+    { "path": "./packages/api-client" },
     { "path": "./apps/backend" },
-    { "path": "./apps/frontend" }
+    { "path": "./apps/frontend" },
+    { "path": "./apps/ucaas-client" }
   ]
 }

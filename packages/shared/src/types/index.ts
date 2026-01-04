@@ -16,6 +16,7 @@ export interface User {
   lastName: string
   email: string
   phone?: string
+  extension?: string
   role: UserRole
   status: UserStatus
   preferences: NotificationPreferences
@@ -152,3 +153,9 @@ export interface ErrorResponse {
     details?: Record<string, string[]>
   }
 }
+
+// Export chat types
+export * from './chat.js'
+
+// Export softphone types
+export * from './softphone.js'
