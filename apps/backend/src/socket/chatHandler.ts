@@ -1,12 +1,13 @@
 import type { Server, Socket } from 'socket.io'
-import type { ChatStorage, StoredMessage } from '../services/chatStorage.js'
+import type { StoredMessage } from '../services/chatStorage.js'
+import type { ChatService } from '../services/chatService.js'
 
 // Utility function to generate unique IDs
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-export function setupChatHandlers(io: Server, storage: ChatStorage) {
+export function setupChatHandlers(io: Server, chatService: ChatService) {
   io.on('connection', (socket: Socket) => {
     let currentUserId: string | null = null
 
@@ -21,7 +22,7 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
         socket.join(`user:${userId}`)
 
         // Store session
-        storage.addUserSession(userId, socket.id, status)
+        chatService.addUserSession(userId, socket.id, status)
 
         console.log(`User registered: ${userId} (extension: ${extension || 'none'}, status: ${status})`)
 
@@ -29,7 +30,7 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
         socket.broadcast.emit('user:online', { userId, status })
 
         // Send current online users to the newly connected user
-        const onlineUsers = storage.getOnlineUsers()
+        const onlineUsers = chatService.getOnlineUsers()
         socket.emit('users:online', { userIds: onlineUsers })
       } catch (error) {
         console.error('Error in user:register:', error)
@@ -38,7 +39,7 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
     })
 
     // Send message
-    socket.on('message:send', ({ toUserId, content }: { toUserId: string; content: string }) => {
+    socket.on('message:send', async ({ toUserId, content }: { toUserId: string; content: string }) => {
       try {
         if (!currentUserId) {
           socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'User not registered' })
@@ -65,8 +66,8 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
           read: false,
         }
 
-        // Save message to storage
-        storage.saveMessage(message)
+        // Save message to storage and database
+        await chatService.saveMessage(message)
 
         console.log(`Message from ${currentUserId} to ${toUserId}: "${content.substring(0, 50)}..."`)
 
@@ -82,13 +83,13 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
     })
 
     // Mark messages as read
-    socket.on('message:read', ({ fromUserId }: { fromUserId: string }) => {
+    socket.on('message:read', async ({ fromUserId }: { fromUserId: string }) => {
       try {
         if (!currentUserId) {
           return
         }
 
-        storage.markAsRead(fromUserId, currentUserId)
+        await chatService.markAsRead(fromUserId, currentUserId)
 
         console.log(`Messages from ${fromUserId} to ${currentUserId} marked as read`)
 
@@ -137,7 +138,7 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
           return
         }
 
-        storage.updateUserStatus(currentUserId, status)
+        chatService.updateUserStatus(currentUserId, status)
 
         console.log(`User ${currentUserId} changed status to ${status}`)
 
@@ -149,14 +150,14 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
     })
 
     // Get conversation history
-    socket.on('conversation:load', ({ withUserId, limit }: { withUserId: string; limit?: number }) => {
+    socket.on('conversation:load', async ({ withUserId, limit }: { withUserId: string; limit?: number }) => {
       try {
         if (!currentUserId) {
           socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'User not registered' })
           return
         }
 
-        const messages = storage.getConversation(currentUserId, withUserId, limit || 100)
+        const messages = await chatService.getConversation(currentUserId, withUserId, limit || 100)
 
         socket.emit('conversation:loaded', { withUserId, messages })
       } catch (error) {
@@ -169,14 +170,11 @@ export function setupChatHandlers(io: Server, storage: ChatStorage) {
     socket.on('disconnect', () => {
       try {
         if (currentUserId) {
-          const session = storage.removeUserSession(socket.id)
+          chatService.removeUserSession(socket.id)
+          console.log(`User disconnected: ${currentUserId}`)
 
-          if (session) {
-            console.log(`User disconnected: ${currentUserId}`)
-
-            // Broadcast to all users that this user is offline
-            socket.broadcast.emit('user:offline', { userId: currentUserId })
-          }
+          // Broadcast to all users that this user is offline
+          socket.broadcast.emit('user:offline', { userId: currentUserId })
         } else {
           console.log(`Socket disconnected: ${socket.id} (no user registered)`)
         }

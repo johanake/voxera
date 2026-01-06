@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  customerId    String    @map("customer_id")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  email         String    @unique
+  phone         String?
+  extension     String?   @unique
+  role          UserRole
+  status        UserStatus
+  preferences   Json      @default("{\"emailNotifications\":true,\"smsNotifications\":false,\"newLicenseAssigned\":true,\"numberPortingUpdates\":true}")
+  employeeId    String?   @map("employee_id")
+  department    String?
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdBy     String    @map("created_by")
+  deletedAt     DateTime? @map("deleted_at")
+  deletedBy     String?   @map("deleted_by")
+
+  // Relations
+  chatsSent     ChatMessage[] @relation("ChatSender")
+  chatsReceived ChatMessage[] @relation("ChatReceiver")
+
+  @@index([customerId])
+  @@index([email])
+  @@index([extension])
+  @@index([status])
+  @@map("users")
+}
+
+enum UserRole {
+  customer_admin
+  manager
+  user
+}
+
+enum UserStatus {
+  active
+  suspended
+  invited
+  inactive
+}
+
+// ============================================================================
+// CHAT SYSTEM
+// ============================================================================
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  fromUserId String   @map("from_user_id")
+  toUserId   String   @map("to_user_id")
+  content    String   @db.Text
+  timestamp  DateTime @default(now())
+  read       Boolean  @default(false)
+
+  // Relations
+  sender     User     @relation("ChatSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ChatReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([fromUserId, toUserId])
+  @@index([timestamp])
+  @@map("chat_messages")
+}

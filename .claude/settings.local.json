@@ -9,7 +9,12 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "Bash(find:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(tree:*)",
+      "Bash(npx prisma:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose ps:*)"
     ]
   }
 }

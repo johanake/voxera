@@ -13,6 +13,7 @@ Voxera is a Unified Communications as a Service (UCaaS) platform built as a Type
   ```
   /apps
     /frontend  - React + Vite + Tailwind CSS
+    /ucaas-client  - React + Vite + Tailwind CSS
     /backend   - Node.js + Express
   /packages
     /shared    - Shared TypeScript types and utilities

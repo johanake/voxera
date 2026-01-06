@@ -1,3 +1,6 @@
 export * from './types/index.js'
+export * from './types/chat.js'
+export * from './types/softphone.js'
+export * from './types/validation.js'
 export * from './utils/index.js'
 export * from './constants/index.js'

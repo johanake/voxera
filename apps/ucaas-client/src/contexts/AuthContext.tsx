@@ -34,6 +34,8 @@ const mockUsers: User[] = [
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     createdBy: 'admin',
+    employeeId: null,
+    lastLoginAt: null
   },
   {
     id: 'user-2',
@@ -55,6 +57,8 @@ const mockUsers: User[] = [
     createdAt: new Date('2024-01-02'),
     updatedAt: new Date('2024-01-02'),
     createdBy: 'admin',
+    employeeId: null,
+    lastLoginAt: null
   },
   {
     id: 'user-3',
@@ -76,6 +80,8 @@ const mockUsers: User[] = [
     createdAt: new Date('2024-01-03'),
     updatedAt: new Date('2024-01-03'),
     createdBy: 'admin',
+    employeeId: null,
+    lastLoginAt: null
   },
   {
     id: 'user-4',
@@ -97,6 +103,8 @@ const mockUsers: User[] = [
     createdAt: new Date('2024-01-04'),
     updatedAt: new Date('2024-01-04'),
     createdBy: 'admin',
+    employeeId: null,
+    lastLoginAt: null
   },
 ]
 

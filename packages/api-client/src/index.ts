@@ -383,3 +383,6 @@ export class VoxeraApiClient {
     })
   }
 }
+
+// Simple direct API exports (for use without the VoxeraApiClient class)
+export { userApi } from './userApi'

@@ -1,155 +1,51 @@
-import { useState } from 'react'
-import type { User, UserStatus, UserRole, License } from '@ucaas/shared'
+import { useState, useEffect } from 'react'
+import type { User, UserStatus, UserRole } from '@ucaas/shared'
 import { Button, Input, Select, Badge, Table, Pagination, Dropdown, Card } from '../components/ui'
 import type { Column } from '../components/ui'
 import UserModal from '../components/users/UserModal'
-
-// Mock data for demonstration
-const mockUsers: User[] = [
-  {
-    id: '1',
-    customerId: 'cust-1',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@acme.com',
-    phone: '+46701234567',
-    role: 'customer_admin',
-    status: 'active',
-    department: 'Engineering',
-    employeeId: 'EMP-001',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: false,
-      newLicenseAssigned: true,
-      numberPortingUpdates: true,
-    },
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
-    createdBy: 'system',
-  },
-  {
-    id: '2',
-    customerId: 'cust-1',
-    firstName: 'Jane',
-    lastName: 'Smith',
-    email: 'jane@acme.com',
-    role: 'user',
-    status: 'active',
-    department: 'Sales',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: true,
-      newLicenseAssigned: true,
-      numberPortingUpdates: false,
-    },
-    createdAt: new Date('2024-01-14'),
-    updatedAt: new Date('2024-01-14'),
-    createdBy: 'user-1',
-  },
-  {
-    id: '3',
-    customerId: 'cust-1',
-    firstName: 'Bob',
-    lastName: 'Johnson',
-    email: 'bob@acme.com',
-    role: 'manager',
-    status: 'invited',
-    department: 'Marketing',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: false,
-      newLicenseAssigned: true,
-      numberPortingUpdates: true,
-    },
-    createdAt: new Date('2024-01-13'),
-    updatedAt: new Date('2024-01-13'),
-    createdBy: 'user-1',
-  },
-]
-
-const mockLicenses: License[] = [
-  {
-    id: 'lic-1',
-    customerId: 'cust-1',
-    bundleId: 'bundle-1',
-    tierId: 'tier-pro',
-    userId: '1',
-    status: 'active',
-    bundleName: 'Mobile Professional',
-    tierName: 'Pro',
-  },
-  {
-    id: 'lic-2',
-    customerId: 'cust-1',
-    bundleId: 'bundle-2',
-    tierId: 'tier-basic',
-    userId: '1',
-    status: 'active',
-    bundleName: 'PBX',
-    tierName: 'Basic',
-  },
-  {
-    id: 'lic-3',
-    customerId: 'cust-1',
-    bundleId: 'bundle-1',
-    tierId: 'tier-pro',
-    userId: '2',
-    status: 'active',
-    bundleName: 'Mobile Professional',
-    tierName: 'Pro',
-  },
-]
+import { userApi } from '@ucaas/api-client'
 
 const Users = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers)
+  const [users, setUsers] = useState<User[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'all'>('all')
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [sortKey, setSortKey] = useState<string>('createdAt')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const pageSize = 20
 
-  // Filter users
-  const filteredUsers = users.filter(user => {
-    const matchesSearch =
-      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  // Fetch users from API
+  useEffect(() => {
+    loadUsers()
+  }, [currentPage, searchQuery, statusFilter, roleFilter])
 
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-    return matchesSearch && matchesStatus && matchesRole
-  })
+      const response = await userApi.list({
+        page: currentPage,
+        pageSize,
+        search: searchQuery || undefined,
+        status: statusFilter !== 'all' ? [statusFilter] : undefined,
+        role: roleFilter !== 'all' ? [roleFilter] : undefined,
+      })
 
-  // Sort users
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    const aValue = (a as any)[sortKey]
-    const bValue = (b as any)[sortKey]
-
-    if (sortDirection === 'asc') {
-      return aValue > bValue ? 1 : -1
-    }
-    return aValue < bValue ? 1 : -1
-  })
-
-  // Paginate users
-  const totalPages = Math.ceil(sortedUsers.length / pageSize)
-  const paginatedUsers = sortedUsers.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  )
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortKey(key)
-      setSortDirection('asc')
+      setUsers(response.data)
+      setTotalPages(response.pagination.totalPages)
+      setTotalItems(response.pagination.totalItems)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load users')
+      console.error('Error loading users:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -163,25 +59,49 @@ const Users = () => {
     setIsModalOpen(true)
   }
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(u => u.id !== userId))
+      try {
+        await userApi.delete(userId)
+        await loadUsers() // Refresh the list
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to delete user')
+      }
     }
   }
 
-  const handleSaveUser = (user: User) => {
-    if (editingUser) {
-      // Update existing user
-      setUsers(users.map(u => u.id === user.id ? user : u))
-    } else {
-      // Add new user
-      setUsers([...users, { ...user, id: `user-${Date.now()}`, createdAt: new Date(), updatedAt: new Date(), createdBy: 'current-user' }])
+  const handleSaveUser = async (user: User) => {
+    try {
+      if (editingUser) {
+        // Update existing user
+        await userApi.update(user.id, {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          extension: user.extension,
+          role: user.role,
+          department: user.department,
+          preferences: user.preferences,
+        })
+      } else {
+        // Add new user
+        await userApi.create({
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone || undefined,
+          extension: user.extension || undefined,
+          role: user.role,
+          department: user.department || undefined,
+          preferences: user.preferences,
+        })
+      }
+      setIsModalOpen(false)
+      await loadUsers() // Refresh the list
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save user')
     }
-    setIsModalOpen(false)
-  }
-
-  const getUserLicenses = (userId: string) => {
-    return mockLicenses.filter(lic => lic.userId === userId)
   }
 
   const getStatusBadge = (status: UserStatus) => {
@@ -208,7 +128,6 @@ const Users = () => {
     {
       key: 'name',
       header: 'Name',
-      sortable: true,
       render: (user) => (
         <div>
           <div className="font-medium text-gray-900">
@@ -221,38 +140,20 @@ const Users = () => {
     {
       key: 'email',
       header: 'Email',
-      sortable: true,
+    },
+    {
+      key: 'extension',
+      header: 'Extension',
+      render: (user) => user.extension || <span className="text-gray-400">-</span>,
     },
     {
       key: 'role',
       header: 'Role',
-      sortable: true,
       render: (user) => getRoleName(user.role),
-    },
-    {
-      key: 'licenses',
-      header: 'Licenses',
-      render: (user) => {
-        const licenses = getUserLicenses(user.id)
-        if (licenses.length === 0) {
-          return <span className="text-gray-500 text-sm">No licenses</span>
-        }
-        return (
-          <div className="text-sm">
-            <div className="font-medium">{licenses.length} assigned</div>
-            {licenses.map(lic => (
-              <div key={lic.id} className="text-gray-500 text-xs">
-                {lic.bundleName} - {lic.tierName}
-              </div>
-            ))}
-          </div>
-        )
-      },
     },
     {
       key: 'status',
       header: 'Status',
-      sortable: true,
       render: (user) => getStatusBadge(user.status),
     },
     {
@@ -307,10 +208,12 @@ const Users = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Users ({filteredUsers.length})</h1>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Users {!loading && `(${totalItems})`}
+              </h1>
               <p className="text-sm text-gray-500 mt-1">Manage user accounts and permissions</p>
             </div>
-            <Button onClick={handleAddUser}>
+            <Button onClick={handleAddUser} disabled={loading}>
               <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
@@ -327,11 +230,13 @@ const Users = () => {
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={loading}
               />
             </div>
             <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as UserStatus | 'all')}
+              disabled={loading}
               options={[
                 { value: 'all', label: 'All Statuses' },
                 { value: 'active', label: 'Active' },
@@ -343,6 +248,7 @@ const Users = () => {
             <Select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+              disabled={loading}
               options={[
                 { value: 'all', label: 'All Roles' },
                 { value: 'customer_admin', label: 'Admin' },
@@ -357,31 +263,58 @@ const Users = () => {
                 setSearchQuery('')
                 setStatusFilter('all')
                 setRoleFilter('all')
+                setCurrentPage(1)
               }}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+              disabled={loading}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
             >
               Clear filters
             </button>
           )}
         </div>
 
+        {/* Error State */}
+        {error && (
+          <div className="px-6 py-4 bg-red-50 border-b border-red-200">
+            <div className="flex items-center text-red-800">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span>{error}</span>
+              <button
+                onClick={loadUsers}
+                className="ml-auto text-sm underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="px-6 py-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-sm text-gray-500">Loading users...</p>
+          </div>
+        )}
+
         {/* Table */}
-        <Table
-          columns={columns}
-          data={paginatedUsers}
-          onSort={handleSort}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          emptyMessage="No users found. Click 'Add User' to create your first user."
-        />
+        {!loading && (
+          <Table
+            columns={columns}
+            data={users}
+            emptyMessage="No users found. Click 'Add User' to create your first user."
+          />
+        )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {!loading && totalPages > 1 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}
-            totalItems={filteredUsers.length}
+            totalItems={totalItems}
             pageSize={pageSize}
           />
         )}

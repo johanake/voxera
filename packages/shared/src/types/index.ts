@@ -15,14 +15,14 @@ export interface User {
   firstName: string
   lastName: string
   email: string
-  phone?: string
-  extension?: string
+  phone: string | null
+  extension: string | null
   role: UserRole
   status: UserStatus
   preferences: NotificationPreferences
-  employeeId?: string
-  department?: string
-  lastLoginAt?: Date
+  employeeId: string | null
+  department: string | null
+  lastLoginAt: Date | null
   createdAt: Date
   updatedAt: Date
   createdBy: string
