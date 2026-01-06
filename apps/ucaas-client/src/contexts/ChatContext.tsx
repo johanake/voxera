@@ -99,7 +99,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   }
 
   // Connect once
-  socketService.connect(currentUser.id, currentUser.extension, 'online')
+  socketService.connect(currentUser.id, currentUser.extension ?? undefined, 'online')
 
   // Subscribe to events
   const unsubMessage = socketService.onMessage((message) => {

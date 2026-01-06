@@ -6,6 +6,7 @@ import { useCallHistory, useCreateCallHistory } from '../hooks/useCallHistory'
 import { WebRTCService } from '../services/webrtcService'
 import { socketService } from '../services/socketService'
 import { useAuth } from './AuthContext'
+import { useRingtone } from '../hooks/useRingtone'
 
 interface SoftphoneContextType {
   currentCall: Call | null
@@ -47,6 +48,9 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
 
   // Extract call history from query response
   const callHistory = callHistoryData?.data || []
+
+  // Play ringing sound when call is ringing (both incoming and outgoing)
+  useRingtone(callState === 'ringing')
 
   // Keep currentCallRef in sync
   useEffect(() => {
