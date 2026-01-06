@@ -14,7 +14,8 @@
       "Bash(npx prisma:*)",
       "Bash(docker compose:*)",
       "Bash(docker-compose up:*)",
-      "Bash(docker-compose ps:*)"
+      "Bash(docker-compose ps:*)",
+      "Bash(ls:*)"
     ]
   }
 }

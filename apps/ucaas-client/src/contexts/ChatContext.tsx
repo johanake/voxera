@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type { ChatMessage, ChatContact } from '@ucaas/shared'
+import { useQueryClient } from '@tanstack/react-query'
+import { useChatConversation } from '../hooks/useChat'
 import { ChatService } from '../services/chatService'
 import { socketService } from '../services/socketService'
 import { useAuth } from './AuthContext'
@@ -20,13 +22,37 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined)
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser, availableUsers } = useAuth()
+  const queryClient = useQueryClient()
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [selectedContact, setSelectedContact] = useState<ChatContact | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const selectedContactRef = useRef<ChatContact | null>(null)
+
+  // Fetch conversation from backend when contact is selected
+  const { data: backendMessages = [], isLoading: _isLoadingMessages } = useChatConversation(
+    currentUser?.id || '',
+    selectedContact?.userId || ''
+  )
+
+  // Merge backend messages with localStorage messages (hybrid approach)
+  const messages = useMemo(() => {
+    if (!currentUser || !selectedContact) return []
+
+    const localMessages = ChatService.getConversation(currentUser.id, selectedContact.userId)
+
+    // Create a map of backend message IDs for deduplication
+    const backendIds = new Set(backendMessages.map((m) => m.id))
+
+    // Get local-only messages (not yet in backend)
+    const localOnlyMessages = localMessages.filter((m) => !backendIds.has(m.id))
+
+    // Merge and sort by timestamp
+    return [...backendMessages, ...localOnlyMessages].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+    )
+  }, [backendMessages, currentUser, selectedContact])
 
   // Load contacts based on available users
   const refreshContacts = useCallback(() => {
@@ -77,18 +103,22 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
   // Subscribe to events
   const unsubMessage = socketService.onMessage((message) => {
+    // Save to localStorage (offline fallback)
     ChatService.saveMessage(message)
-    setMessages((prev) => {
-      const contactId = selectedContactRef.current?.userId
-      if (
-        contactId &&
-        (message.fromUserId === contactId || message.toUserId === contactId)
-      ) {
-        if (prev.some((m) => m.id === message.id)) return prev
-        return [...prev, message]
+
+    // Update React Query cache
+    const contactId =
+      message.fromUserId === currentUser?.id ? message.toUserId : message.fromUserId
+
+    queryClient.setQueryData<ChatMessage[]>(
+      ['chat', 'conversation', currentUser?.id, contactId],
+      (old = []) => {
+        // Avoid duplicates
+        if (old.some((m) => m.id === message.id)) return old
+        return [...old, message]
       }
-      return prev
-    })
+    )
+
     refreshContacts()
   })
 
@@ -144,13 +174,6 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
       setSelectedContact(contact)
 
-      // Load messages from localStorage
-      const conversationMessages = ChatService.getConversation(
-        currentUser.id,
-        contactUserId
-      )
-      setMessages(conversationMessages)
-
       // Mark messages as read (both locally and on server if connected)
       ChatService.markMessagesAsRead(currentUser.id, contactUserId)
       if (isConnected) {
@@ -169,22 +192,26 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       if (!currentUser || !selectedContact) return
 
       if (isConnected) {
-        // Send via WebSocket
+        // Send via WebSocket - socket handler will update React Query cache
         socketService.sendMessage(selectedContact.userId, content)
       } else {
-        // Fallback to localStorage
+        // Fallback to localStorage when offline
         const message = ChatService.sendMessage(
           currentUser.id,
           selectedContact.userId,
           content
         )
 
-        // Update local state
-        setMessages((prev) => [...prev, message])
+        // Update React Query cache optimistically
+        queryClient.setQueryData<ChatMessage[]>(
+          ['chat', 'conversation', currentUser.id, selectedContact.userId],
+          (old = []) => [...old, message]
+        )
+
         refreshContacts()
       }
     },
-    [currentUser, selectedContact, isConnected, refreshContacts]
+    [currentUser, selectedContact, isConnected, refreshContacts, queryClient]
   )
 
   return (

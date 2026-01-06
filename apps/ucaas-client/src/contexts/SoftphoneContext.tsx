@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { Call, CallState, CallHistoryEntry } from '@ucaas/shared'
+import type { Call, CallState } from '@ucaas/shared'
+import type { CallHistoryEntry } from '@ucaas/api-client'
+import { useCallHistory, useCreateCallHistory } from '../hooks/useCallHistory'
 import { WebRTCService } from '../services/webrtcService'
 import { socketService } from '../services/socketService'
 import { useAuth } from './AuthContext'
@@ -27,15 +29,11 @@ interface SoftphoneContextType {
 
 const SoftphoneContext = createContext<SoftphoneContextType | undefined>(undefined)
 
-const CALL_HISTORY_KEY = 'voxera_call_history'
-const MAX_HISTORY_ENTRIES = 50
-
 export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth()
   const [currentCall, setCurrentCall] = useState<Call | null>(null)
   const [callState, setCallState] = useState<CallState>('idle')
   const [isMuted, setIsMuted] = useState(false)
-  const [callHistory, setCallHistory] = useState<CallHistoryEntry[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -43,35 +41,12 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
   const webrtcServiceRef = useRef<WebRTCService | null>(null)
   const currentCallRef = useRef<Call | null>(null)
 
-  // Load call history from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(CALL_HISTORY_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        const history = parsed.map((entry: CallHistoryEntry) => ({
-          ...entry,
-          timestamp: new Date(entry.timestamp),
-        }))
-        setCallHistory(history)
-      }
-    } catch (err) {
-      console.error('Failed to load call history:', err)
-    }
-  }, [])
+  // Fetch call history from backend using React Query
+  const { data: callHistoryData } = useCallHistory(currentUser?.id || '')
+  const createCallHistoryMutation = useCreateCallHistory()
 
-  // Save call history to localStorage
-  const saveCallHistory = useCallback((newEntry: CallHistoryEntry) => {
-    setCallHistory((prev) => {
-      const updated = [newEntry, ...prev].slice(0, MAX_HISTORY_ENTRIES)
-      try {
-        localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(updated))
-      } catch (err) {
-        console.error('Failed to save call history:', err)
-      }
-      return updated
-    })
-  }, [])
+  // Extract call history from query response
+  const callHistory = callHistoryData?.data || []
 
   // Keep currentCallRef in sync
   useEffect(() => {
@@ -98,17 +73,17 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
     setIsMuted(false)
   }, [])
 
-  // Save call to history
+  // Save call to history (backend)
   const saveToHistory = useCallback(() => {
     const call = currentCallRef.current
-    if (!call) return
+    if (!call || !currentUser) return
 
     const duration = call.answeredAt && call.endedAt
       ? Math.floor((call.endedAt.getTime() - call.answeredAt.getTime()) / 1000)
       : undefined
 
-    const entry: CallHistoryEntry = {
-      id: call.id,
+    const entry: Omit<CallHistoryEntry, 'id'> = {
+      userId: currentUser.id,
       contactName: call.direction === 'outbound' ? call.toName : call.fromName,
       contactExtension: call.direction === 'outbound' ? call.toExtension : call.fromExtension,
       direction: call.direction,
@@ -117,8 +92,9 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
       answered: !!call.answeredAt,
     }
 
-    saveCallHistory(entry)
-  }, [saveCallHistory])
+    // Save to backend via React Query mutation
+    createCallHistoryMutation.mutate(entry)
+  }, [currentUser, createCallHistoryMutation])
 
   /**
    * Initiate outbound call

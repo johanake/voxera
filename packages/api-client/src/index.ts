@@ -386,3 +386,6 @@ export class VoxeraApiClient {
 
 // Simple direct API exports (for use without the VoxeraApiClient class)
 export { userApi } from './userApi'
+export { chatApi } from './chatApi'
+export { callHistoryApi } from './callHistoryApi'
+export type { CallHistoryEntry } from './callHistoryApi'

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { User } from '@ucaas/shared'
+import { useUsers } from '../hooks/useUsers'
 
 interface AuthContextType {
   currentUser: User | null
@@ -8,126 +9,41 @@ interface AuthContextType {
   login: (userId: string) => void
   logout: () => void
   availableUsers: User[]
+  isLoading: boolean
+  error: Error | null
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock users for testing
-const mockUsers: User[] = [
-  {
-    id: 'user-1',
-    customerId: 'customer-1',
-    firstName: 'Alice',
-    lastName: 'Johnson',
-    email: 'alice@voxera.com',
-    phone: '+1234567890',
-    extension: '101',
-    role: 'manager',
-    status: 'active',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: false,
-      newLicenseAssigned: true,
-      numberPortingUpdates: true,
-    },
-    department: 'Sales',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    createdBy: 'admin',
-    employeeId: null,
-    lastLoginAt: null
-  },
-  {
-    id: 'user-2',
-    customerId: 'customer-1',
-    firstName: 'Bob',
-    lastName: 'Smith',
-    email: 'bob@voxera.com',
-    phone: '+1234567891',
-    extension: '102',
-    role: 'user',
-    status: 'active',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: true,
-      newLicenseAssigned: true,
-      numberPortingUpdates: false,
-    },
-    department: 'Support',
-    createdAt: new Date('2024-01-02'),
-    updatedAt: new Date('2024-01-02'),
-    createdBy: 'admin',
-    employeeId: null,
-    lastLoginAt: null
-  },
-  {
-    id: 'user-3',
-    customerId: 'customer-1',
-    firstName: 'Charlie',
-    lastName: 'Davis',
-    email: 'charlie@voxera.com',
-    phone: '+1234567892',
-    extension: '103',
-    role: 'user',
-    status: 'active',
-    preferences: {
-      emailNotifications: false,
-      smsNotifications: false,
-      newLicenseAssigned: false,
-      numberPortingUpdates: false,
-    },
-    department: 'Engineering',
-    createdAt: new Date('2024-01-03'),
-    updatedAt: new Date('2024-01-03'),
-    createdBy: 'admin',
-    employeeId: null,
-    lastLoginAt: null
-  },
-  {
-    id: 'user-4',
-    customerId: 'customer-1',
-    firstName: 'Diana',
-    lastName: 'Wilson',
-    email: 'diana@voxera.com',
-    phone: '+1234567893',
-    extension: '100',
-    role: 'customer_admin',
-    status: 'active',
-    preferences: {
-      emailNotifications: true,
-      smsNotifications: true,
-      newLicenseAssigned: true,
-      numberPortingUpdates: true,
-    },
-    department: 'Management',
-    createdAt: new Date('2024-01-04'),
-    updatedAt: new Date('2024-01-04'),
-    createdBy: 'admin',
-    employeeId: null,
-    lastLoginAt: null
-  },
-]
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
-  // Load user from localStorage on mount
+  // Fetch users from backend using React Query
+  const { data: users = [], isLoading, error } = useUsers()
+
+  // Load user from localStorage on mount or when users are fetched
   useEffect(() => {
+    if (users.length === 0) return
+
     const savedUserId = localStorage.getItem('currentUserId')
     if (savedUserId) {
-      const user = mockUsers.find((u) => u.id === savedUserId)
+      const user = users.find((u) => u.id === savedUserId)
       if (user) {
         setCurrentUser(user)
+      } else {
+        // Saved user not found, default to first user
+        setCurrentUser(users[0])
+        localStorage.setItem('currentUserId', users[0].id)
       }
     } else {
       // Auto-login as first user for convenience
-      setCurrentUser(mockUsers[0])
-      localStorage.setItem('currentUserId', mockUsers[0].id)
+      setCurrentUser(users[0])
+      localStorage.setItem('currentUserId', users[0].id)
     }
-  }, [])
+  }, [users])
 
   const login = (userId: string) => {
-    const user = mockUsers.find((u) => u.id === userId)
+    const user = users.find((u) => u.id === userId)
     if (user) {
       setCurrentUser(user)
       localStorage.setItem('currentUserId', userId)
@@ -139,6 +55,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('currentUserId')
   }
 
+  // Show loading state while fetching users
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading users...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if fetch fails
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="text-red-600 text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-red-600 mb-2">Failed to load users</h2>
+          <p className="text-gray-600 mb-4">{error.message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -146,7 +93,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!currentUser,
         login,
         logout,
-        availableUsers: mockUsers,
+        availableUsers: users,
+        isLoading,
+        error,
       }}
     >
       {children}

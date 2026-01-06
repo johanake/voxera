@@ -9,11 +9,15 @@ import { API_VERSION, type ApiResponse } from '@ucaas/shared'
 import { prisma, disconnectDatabase } from './config/database.js'
 import { UserRepository } from './db/repositories/userRepository.js'
 import { ChatRepository } from './db/repositories/chatRepository.js'
+import { CallHistoryRepository } from './db/repositories/callHistoryRepository.js'
 import { UserService } from './services/userService.js'
 import { ChatStorage } from './services/chatStorage.js'
 import { ChatService } from './services/chatService.js'
 import { CallStorage } from './services/callStorage.js'
+import { CallHistoryService } from './services/callHistoryService.js'
 import { UserController } from './controllers/userController.js'
+import { CallHistoryController } from './controllers/callHistoryController.js'
+import { ChatController } from './controllers/chatController.js'
 import { createApiRoutes } from './routes/index.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { setupChatHandlers } from './socket/chatHandler.js'
@@ -24,9 +28,18 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
 
+// Allowed origins for CORS
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:3001',
+  process.env.UCAAS_CLIENT_URL || 'http://localhost:3002',
+]
+
 // Middleware (must be before routes)
 app.use(helmet())
-app.use(cors())
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}))
 app.use(express.json())
 app.use(morgan('dev'))
 
@@ -36,7 +49,7 @@ const httpServer = createServer(app)
 // Initialize Socket.io with CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3002',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -49,9 +62,11 @@ const io = new Server(httpServer, {
 // Initialize repositories
 const userRepository = new UserRepository(prisma)
 const chatRepository = new ChatRepository(prisma)
+const callHistoryRepository = new CallHistoryRepository(prisma)
 
 // Initialize services
 const userService = new UserService(userRepository)
+const callHistoryService = new CallHistoryService(callHistoryRepository)
 
 // Initialize storage services (in-memory)
 const chatStorage = new ChatStorage()
@@ -62,9 +77,11 @@ const chatService = new ChatService(chatStorage, chatRepository)
 
 // Initialize controllers
 const userController = new UserController(userService)
+const callHistoryController = new CallHistoryController(callHistoryService)
+const chatController = new ChatController(chatService)
 
 // Mount API routes
-const apiRoutes = createApiRoutes(userController)
+const apiRoutes = createApiRoutes(userController, callHistoryController, chatController)
 app.use('/api/v1', apiRoutes)
 
 // Initialize socket handlers
