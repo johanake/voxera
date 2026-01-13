@@ -14,25 +14,25 @@ const AppContent: FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200">
+      <nav className="bg-primary-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
               <div className="flex items-center">
-                <div className="w-8 h-8 bg-gradient-to-r from-primary-300 to-primary-400 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">V</span>
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                  <span className="text-primary-500 font-bold text-lg">V</span>
                 </div>
-                <span className="ml-2 text-xl font-semibold text-gray-900">Voxera UCaaS</span>
+                <span className="ml-2 text-xl font-semibold text-white">Voxera UCaaS</span>
               </div>
 
-              <div className="flex space-x-4">
+              <div className="flex space-x-6">
                 <NavLink
                   to="/"
                   className={({ isActive }) =>
-                    `px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    `pb-1 border-b-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-primary-50 text-primary-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'text-white border-primary-300'
+                        : 'text-gray-300 hover:text-white border-transparent'
                     }`
                   }
                 >
@@ -41,10 +41,10 @@ const AppContent: FC = () => {
                 <NavLink
                   to="/phone"
                   className={({ isActive }) =>
-                    `px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    `pb-1 border-b-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-primary-50 text-primary-600'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'text-white border-primary-300'
+                        : 'text-gray-300 hover:text-white border-transparent'
                     }`
                   }
                 >
@@ -57,23 +57,23 @@ const AppContent: FC = () => {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
+                className="flex items-center space-x-3 hover:bg-primary-600 rounded-lg px-3 py-2 transition-colors"
               >
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                <div className="w-8 h-8 bg-primary-300 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                   {currentUser
                     ? `${currentUser.firstName[0]}${currentUser.lastName[0]}`
                     : '?'}
                 </div>
                 <div className="text-left hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-white">
                     {currentUser
                       ? `${currentUser.firstName} ${currentUser.lastName}`
                       : 'Not logged in'}
                   </p>
-                  <p className="text-xs text-gray-500">Switch user</p>
+                  <p className="text-xs text-gray-300">Switch user</p>
                 </div>
                 <svg
-                  className="w-4 h-4 text-gray-500"
+                  className="w-4 h-4 text-gray-300"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
