@@ -27,10 +27,42 @@ export class ChatRepository {
             { fromUserId: userId2, toUserId: userId1 },
           ],
         },
+        include: {
+          reactions: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
         orderBy: { timestamp: 'desc' },
         take: limit,
       })
       .then((messages: ChatMessage[]) => messages.reverse()) // Oldest first
+  }
+
+  async getById(messageId: string): Promise<ChatMessage | null> {
+    return this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      include: {
+        reactions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+    })
   }
 
   async markAsRead(fromUserId: string, toUserId: string): Promise<void> {

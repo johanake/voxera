@@ -1,13 +1,14 @@
 import type { Server, Socket } from 'socket.io'
 import type { StoredMessage } from '../services/chatStorage.js'
 import type { ChatService } from '../services/chatService.js'
+import type { ReactionService } from '../services/reactionService.js'
 
 // Utility function to generate unique IDs
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-export function setupChatHandlers(io: Server, chatService: ChatService) {
+export function setupChatHandlers(io: Server, chatService: ChatService, reactionService: ReactionService) {
   io.on('connection', (socket: Socket) => {
     let currentUserId: string | null = null
 
@@ -163,6 +164,50 @@ export function setupChatHandlers(io: Server, chatService: ChatService) {
       } catch (error) {
         console.error('Error in conversation:load:', error)
         socket.emit('error', { code: 'LOAD_FAILED', message: 'Failed to load conversation' })
+      }
+    })
+
+    // Toggle reaction on message
+    socket.on('reaction:toggle', async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      try {
+        if (!currentUserId) {
+          socket.emit('error', { code: 'NOT_AUTHENTICATED', message: 'User not registered' })
+          return
+        }
+
+        // Toggle the reaction
+        const result = await reactionService.toggleReaction(messageId, currentUserId, emoji)
+
+        // Get updated reactions for this message
+        const reactions = await reactionService.getReactions(messageId)
+
+        // Fetch the message to get participants
+        const message = await chatService.getMessage(messageId)
+        if (!message) {
+          socket.emit('error', { code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+          return
+        }
+
+        console.log(`Reaction ${result.action} by ${currentUserId} on message ${messageId}: ${emoji}`)
+
+        // Broadcast to both participants in the conversation
+        const participants = [message.fromUserId, message.toUserId]
+
+        participants.forEach((userId) => {
+          io.to(`user:${userId}`).emit('reaction:updated', {
+            messageId,
+            reactions,
+            action: result.action,
+            userId: currentUserId,
+            emoji,
+          })
+        })
+      } catch (error) {
+        console.error('Error in reaction:toggle:', error)
+        socket.emit('error', {
+          code: 'REACTION_FAILED',
+          message: error instanceof Error ? error.message : 'Failed to toggle reaction',
+        })
       }
     })
 

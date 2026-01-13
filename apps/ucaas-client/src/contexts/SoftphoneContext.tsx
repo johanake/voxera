@@ -2,8 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import type { ReactNode } from 'react'
 import type { Call, CallState } from '@ucaas/shared'
 import type { CallHistoryEntry } from '@ucaas/api-client'
+import type { Call as TwilioCall } from '@twilio/voice-sdk'
 import { useCallHistory, useCreateCallHistory } from '../hooks/useCallHistory'
 import { WebRTCService } from '../services/webrtcService'
+import { TwilioDeviceService } from '../services/twilioDeviceService'
 import { socketService } from '../services/socketService'
 import { useAuth } from './AuthContext'
 import { useRingtone } from '../hooks/useRingtone'
@@ -40,6 +42,7 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const webrtcServiceRef = useRef<WebRTCService | null>(null)
+  const twilioDeviceRef = useRef<TwilioDeviceService | null>(null)
   const currentCallRef = useRef<Call | null>(null)
 
   // Fetch call history from backend using React Query
@@ -57,6 +60,106 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
     currentCallRef.current = currentCall
   }, [currentCall])
 
+  // Initialize Twilio Device on mount
+  useEffect(() => {
+    if (!currentUser?.id || !currentUser?.extension) return
+
+    const initializeTwilioDevice = async () => {
+      try {
+        console.log('[Softphone] Fetching Twilio token...')
+
+        // Fetch Twilio access token from backend
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/twilio/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            extension: currentUser.extension,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch Twilio token')
+        }
+
+        const data = await response.json()
+        console.log('[Softphone] Twilio token received, initializing Device...')
+
+        // Initialize Twilio Device
+        twilioDeviceRef.current = new TwilioDeviceService()
+        await twilioDeviceRef.current.initialize(data.token)
+
+        // Setup Twilio Device event handlers
+        setupTwilioHandlers()
+      } catch (error) {
+        console.error('[Softphone] Failed to initialize Twilio Device:', error)
+        setError('Failed to connect to phone service')
+      }
+    }
+
+    initializeTwilioDevice()
+
+    return () => {
+      // Cleanup Twilio Device on unmount
+      if (twilioDeviceRef.current) {
+        twilioDeviceRef.current.destroy()
+        twilioDeviceRef.current = null
+      }
+    }
+  }, [currentUser])
+
+  // Setup Twilio Device handlers
+  const setupTwilioHandlers = useCallback(() => {
+    if (!twilioDeviceRef.current || !currentUser) return
+
+    // Incoming PSTN call
+    twilioDeviceRef.current.onIncoming((connection: TwilioCall) => {
+      const params = connection.parameters as any
+
+      console.log('[Softphone] Incoming PSTN call:', params)
+
+      const incomingCall: Call = {
+        id: params.callId || `twilio-${Date.now()}`,
+        fromUserId: '', // PSTN caller has no user ID
+        fromExtension: params.From || 'Unknown',
+        fromName: params.CallerName || params.From || 'Unknown Caller',
+        toUserId: currentUser.id,
+        toExtension: currentUser.extension!,
+        toName: `${currentUser.firstName} ${currentUser.lastName}`,
+        state: 'ringing',
+        direction: 'inbound',
+        callType: 'pstn_inbound',
+        phoneNumber: params.From,
+        twilioCallSid: params.CallSid,
+        startedAt: new Date(),
+      }
+
+      setCurrentCall(incomingCall)
+      setCallState('ringing')
+    })
+
+    // Call connected
+    twilioDeviceRef.current.onConnect(() => {
+      console.log('[Softphone] PSTN call connected')
+      setCallState('connected')
+      setCurrentCall((prev) => (prev ? { ...prev, answeredAt: new Date() } : null))
+    })
+
+    // Call disconnected
+    twilioDeviceRef.current.onDisconnect(() => {
+      console.log('[Softphone] PSTN call disconnected')
+      saveToHistory()
+      cleanup()
+    })
+
+    // Error handling
+    twilioDeviceRef.current.onError((error) => {
+      console.error('[Softphone] Twilio Device error:', error)
+      setError(error.message)
+      cleanup()
+    })
+  }, [currentUser])
+
   // Cleanup function
   const cleanup = useCallback(() => {
     console.log('Cleaning up call resources')
@@ -66,6 +169,9 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
       webrtcServiceRef.current.close()
       webrtcServiceRef.current = null
     }
+
+    // Note: Don't destroy Twilio Device on cleanup, only on unmount
+    // Just clear the current connection if any
 
     // Clear streams
     localStreamRef.current = null
@@ -186,32 +292,43 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
     try {
       setError(null)
 
-      // Create WebRTC service
-      webrtcServiceRef.current = new WebRTCService()
-
-      // Get user media
-      const stream = await webrtcServiceRef.current.getUserMedia()
-      localStreamRef.current = stream
-
-      // Create peer connection
-      webrtcServiceRef.current.createPeerConnection()
-
-      // Set up handlers
-      webrtcServiceRef.current.onIceCandidate((candidate) => {
-        if (currentCallRef.current) {
-          socketService.sendIceCandidate(currentCallRef.current.id, candidate)
+      // Route to appropriate service based on call type
+      if (currentCall.callType === 'pstn_inbound') {
+        // PSTN call - use Twilio Device SDK
+        if (!twilioDeviceRef.current) {
+          throw new Error('Twilio Device not initialized')
         }
-      })
+        twilioDeviceRef.current.answerIncomingCall()
+        // Note: State updates handled by Twilio Device event handlers
+      } else {
+        // Internal call - use WebRTC
+        // Create WebRTC service
+        webrtcServiceRef.current = new WebRTCService()
 
-      webrtcServiceRef.current.onTrack((stream) => {
-        console.log('Remote stream received')
-        remoteStreamRef.current = stream
-      })
+        // Get user media
+        const stream = await webrtcServiceRef.current.getUserMedia()
+        localStreamRef.current = stream
 
-      // Notify server
-      socketService.answerCall(currentCall.id)
-      setCallState('connecting')
-      setCurrentCall({ ...currentCall, answeredAt: new Date() })
+        // Create peer connection
+        webrtcServiceRef.current.createPeerConnection()
+
+        // Set up handlers
+        webrtcServiceRef.current.onIceCandidate((candidate) => {
+          if (currentCallRef.current) {
+            socketService.sendIceCandidate(currentCallRef.current.id, candidate)
+          }
+        })
+
+        webrtcServiceRef.current.onTrack((stream) => {
+          console.log('Remote stream received')
+          remoteStreamRef.current = stream
+        })
+
+        // Notify server
+        socketService.answerCall(currentCall.id)
+        setCallState('connecting')
+        setCurrentCall({ ...currentCall, answeredAt: new Date() })
+      }
     } catch (err) {
       console.error('Error answering call:', err)
       setError(err instanceof Error ? err.message : 'Failed to answer call')
@@ -225,7 +342,17 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
   const rejectCall = useCallback((reason?: string) => {
     if (!currentCall) return
 
-    socketService.rejectCall(currentCall.id, reason)
+    // Route to appropriate service based on call type
+    if (currentCall.callType === 'pstn_inbound') {
+      // PSTN call - use Twilio Device SDK
+      if (twilioDeviceRef.current) {
+        twilioDeviceRef.current.rejectIncomingCall()
+      }
+    } else {
+      // Internal call - use Socket.io
+      socketService.rejectCall(currentCall.id, reason)
+    }
+
     saveToHistory()
     cleanup()
   }, [currentCall, cleanup, saveToHistory])
@@ -236,7 +363,17 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
   const endCall = useCallback(() => {
     if (!currentCall) return
 
-    socketService.endCall(currentCall.id)
+    // Route to appropriate service based on call type
+    if (currentCall.callType === 'pstn_inbound') {
+      // PSTN call - use Twilio Device SDK
+      if (twilioDeviceRef.current) {
+        twilioDeviceRef.current.hangup()
+      }
+    } else {
+      // Internal call - use Socket.io
+      socketService.endCall(currentCall.id)
+    }
+
     setCurrentCall({ ...currentCall, endedAt: new Date() })
     saveToHistory()
     cleanup()
@@ -246,11 +383,21 @@ export const SoftphoneProvider = ({ children }: { children: ReactNode }) => {
    * Toggle mute
    */
   const toggleMute = useCallback(() => {
-    if (!webrtcServiceRef.current) return
-
-    const muted = webrtcServiceRef.current.toggleMute()
-    setIsMuted(muted)
-  }, [])
+    // Route to appropriate service based on call type
+    if (currentCall?.callType === 'pstn_inbound') {
+      // PSTN call - use Twilio Device SDK
+      if (twilioDeviceRef.current) {
+        const muted = twilioDeviceRef.current.toggleMute()
+        setIsMuted(muted)
+      }
+    } else {
+      // Internal call - use WebRTC
+      if (webrtcServiceRef.current) {
+        const muted = webrtcServiceRef.current.toggleMute()
+        setIsMuted(muted)
+      }
+    }
+  }, [currentCall])
 
   /**
    * Clear error

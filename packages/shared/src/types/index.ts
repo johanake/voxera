@@ -159,3 +159,6 @@ export * from './chat.js'
 
 // Export softphone types
 export * from './softphone.js'
+
+// Export PBX types
+export * from './pbx.js'

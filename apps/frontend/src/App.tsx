@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+import { ToastProvider } from './contexts/ToastContext'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
 import Licenses from './pages/Licenses'
 import Numbers from './pages/Numbers'
+import PBX from './pages/PBX'
 
 function ComingSoon() {
   return (
@@ -77,7 +79,7 @@ function Layout() {
           <Route path="/users" element={<Users />} />
           <Route path="/licenses" element={<Licenses />} />
           <Route path="/numbers" element={<Numbers />} />
-          <Route path="/pbx" element={<ComingSoon />} />
+          <Route path="/pbx" element={<PBX />} />
           <Route path="/ivr" element={<ComingSoon />} />
         </Routes>
       </main>
@@ -87,9 +89,11 @@ function Layout() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Layout />
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <Layout />
+      </BrowserRouter>
+    </ToastProvider>
   )
 }
 

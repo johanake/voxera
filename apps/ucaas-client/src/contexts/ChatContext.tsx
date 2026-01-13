@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { ChatMessage, ChatContact } from '@ucaas/shared'
+import type { ChatMessage, ChatContact, ChatGroupMessage, ChatGroupContact } from '@ucaas/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatConversation } from '../hooks/useChat'
 import { ChatService } from '../services/chatService'
@@ -11,11 +11,21 @@ interface ChatContextType {
   contacts: ChatContact[]
   selectedContact: ChatContact | null
   messages: ChatMessage[]
+  chatGroups: ChatGroupContact[]
+  selectedChatGroup: ChatGroupContact | null
+  chatGroupMessages: ChatGroupMessage[]
   isConnected: boolean
   typingUsers: Set<string>
   selectContact: (contactUserId: string) => void
+  selectChatGroup: (chatGroupId: string) => void
   sendMessage: (content: string) => void
+  sendChatGroupMessage: (chatGroupId: string, content: string) => void
+  createChatGroup: (name: string, memberIds: string[]) => void
+  updateChatGroupName: (chatGroupId: string, name: string) => void
+  leaveChatGroup: (chatGroupId: string) => void
+  deleteChatGroup: (chatGroupId: string) => void
   refreshContacts: () => void
+  refreshChatGroups: () => void
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined)
@@ -25,6 +35,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient()
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [selectedContact, setSelectedContact] = useState<ChatContact | null>(null)
+  const [chatGroups, setChatGroups] = useState<ChatGroupContact[]>([])
+  const [selectedChatGroup, setSelectedChatGroup] = useState<ChatGroupContact | null>(null)
+  const [chatGroupMessages, setChatGroupMessages] = useState<ChatGroupMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
@@ -48,9 +61,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // Get local-only messages (not yet in backend)
     const localOnlyMessages = localMessages.filter((m) => !backendIds.has(m.id))
 
-    // Merge and sort by timestamp
+    // Merge and sort by timestamp (handle both Date objects and string timestamps)
     return [...backendMessages, ...localOnlyMessages].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+      (a, b) => {
+        const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime()
+        const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime()
+        return aTime - bTime
+      }
     )
   }, [backendMessages, currentUser, selectedContact])
 
@@ -79,8 +96,16 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
     // Sort by last message time (most recent first)
     contactsList.sort((a, b) => {
-      const aTime = a.lastMessage?.timestamp.getTime() ?? 0
-      const bTime = b.lastMessage?.timestamp.getTime() ?? 0
+      const aTime = a.lastMessage?.timestamp
+        ? (a.lastMessage.timestamp instanceof Date
+          ? a.lastMessage.timestamp.getTime()
+          : new Date(a.lastMessage.timestamp).getTime())
+        : 0
+      const bTime = b.lastMessage?.timestamp
+        ? (b.lastMessage.timestamp instanceof Date
+          ? b.lastMessage.timestamp.getTime()
+          : new Date(b.lastMessage.timestamp).getTime())
+        : 0
       return bTime - aTime
     })
 
@@ -147,15 +172,133 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
   const unsubConnection = socketService.onConnectionChange(setIsConnected)
 
+  const unsubReaction = socketService.onReactionUpdated((data) => {
+    // Update React Query cache for the conversation containing this message
+    // Find which conversation this message belongs to by checking all cached conversations
+    const cachedData = queryClient.getQueriesData<ChatMessage[]>({
+      queryKey: ['chat', 'conversation', currentUser?.id],
+    })
+
+    cachedData.forEach(([queryKey, messages]) => {
+      if (!messages) return
+
+      const messageIndex = messages.findIndex((m) => m.id === data.messageId)
+      if (messageIndex === -1) return
+
+      // Update the message with new reactions
+      const updatedMessages = [...messages]
+      updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        reactions: data.reactions,
+      }
+
+      queryClient.setQueryData(queryKey, updatedMessages)
+    })
+  })
+
+  // Chat group event subscriptions
+  const unsubChatGroupCreated = socketService.onChatGroupCreated((chatGroup) => {
+    // Convert ChatGroup to ChatGroupContact
+    const chatGroupContact: ChatGroupContact = {
+      chatGroupId: chatGroup.id,
+      name: chatGroup.name,
+      memberCount: chatGroup.members.length,
+      unreadCount: 0,
+      members: chatGroup.members,
+      userRole: chatGroup.members.find((m) => m.userId === currentUser?.id)?.role,
+    }
+    setChatGroups((prev) => [chatGroupContact, ...prev])
+  })
+
+  const unsubChatGroupMessage = socketService.onChatGroupMessage((message) => {
+    // Add message to chat group messages if it's the selected group
+    if (selectedChatGroup && message.chatGroupId === selectedChatGroup.chatGroupId) {
+      setChatGroupMessages((prev) => [...prev, message])
+    }
+
+    // Update unread count for the group
+    setChatGroups((prev) =>
+      prev.map((group) =>
+        group.chatGroupId === message.chatGroupId
+          ? {
+              ...group,
+              lastMessage: message,
+              unreadCount:
+                selectedChatGroup?.chatGroupId === message.chatGroupId
+                  ? group.unreadCount
+                  : group.unreadCount + 1,
+            }
+          : group
+      )
+    )
+  })
+
+  const unsubChatGroupUpdated = socketService.onChatGroupUpdated((chatGroup) => {
+    setChatGroups((prev) =>
+      prev.map((group) =>
+        group.chatGroupId === chatGroup.id
+          ? {
+              ...group,
+              name: chatGroup.name,
+              memberCount: chatGroup.members.length,
+              members: chatGroup.members,
+            }
+          : group
+      )
+    )
+
+    // Update selected group if it matches
+    if (selectedChatGroup && selectedChatGroup.chatGroupId === chatGroup.id) {
+      setSelectedChatGroup((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: chatGroup.name,
+              memberCount: chatGroup.members.length,
+              members: chatGroup.members,
+            }
+          : null
+      )
+    }
+  })
+
+  const unsubChatGroupLeft = socketService.onChatGroupLeft((data) => {
+    // Remove group from list
+    setChatGroups((prev) => prev.filter((g) => g.chatGroupId !== data.chatGroupId))
+
+    // Deselect if it was selected
+    if (selectedChatGroup && selectedChatGroup.chatGroupId === data.chatGroupId) {
+      setSelectedChatGroup(null)
+      setChatGroupMessages([])
+    }
+  })
+
+  const unsubChatGroupDeleted = socketService.onChatGroupDeleted((data) => {
+    // Remove group from list
+    setChatGroups((prev) => prev.filter((g) => g.chatGroupId !== data.chatGroupId))
+
+    // Deselect if it was selected
+    if (selectedChatGroup && selectedChatGroup.chatGroupId === data.chatGroupId) {
+      setSelectedChatGroup(null)
+      setChatGroupMessages([])
+    }
+  })
+
   return () => {
     unsubMessage()
     unsubTyping()
     unsubStatus()
     unsubOnline()
     unsubConnection()
+    unsubReaction()
+    unsubChatGroupCreated()
+    unsubChatGroupMessage()
+    unsubChatGroupUpdated()
+    unsubChatGroupLeft()
+    unsubChatGroupDeleted()
     socketService.disconnect()
   }
-}, [currentUser]) // ✅ Only run when currentUser changes
+}, [currentUser, queryClient, selectedChatGroup]) // ✅ Only run when currentUser changes
 
 
 
@@ -214,17 +357,94 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     [currentUser, selectedContact, isConnected, refreshContacts, queryClient]
   )
 
+  // Chat Group Methods
+  const refreshChatGroups = useCallback(() => {
+    // Chat groups will be loaded via Socket.io events
+    // This is a placeholder for future REST API integration
+  }, [])
+
+  const selectChatGroup = useCallback(
+    (chatGroupId: string) => {
+      const group = chatGroups.find((g) => g.chatGroupId === chatGroupId)
+      if (!group) return
+
+      setSelectedChatGroup(group)
+      setSelectedContact(null) // Deselect 1-on-1 contact
+
+      // Load chat group messages
+      if (isConnected) {
+        socketService.loadChatGroupMessages(chatGroupId, 50)
+      }
+    },
+    [chatGroups, isConnected]
+  )
+
+  const sendChatGroupMessage = useCallback(
+    (chatGroupId: string, content: string) => {
+      if (!currentUser || !isConnected) return
+
+      socketService.sendChatGroupMessage(chatGroupId, content)
+    },
+    [currentUser, isConnected]
+  )
+
+  const createChatGroup = useCallback(
+    (name: string, memberIds: string[]) => {
+      if (!currentUser || !isConnected) return
+
+      socketService.createChatGroup(name, memberIds)
+    },
+    [currentUser, isConnected]
+  )
+
+  const updateChatGroupName = useCallback(
+    (chatGroupId: string, name: string) => {
+      if (!currentUser || !isConnected) return
+
+      socketService.updateChatGroupName(chatGroupId, name)
+    },
+    [currentUser, isConnected]
+  )
+
+  const leaveChatGroup = useCallback(
+    (chatGroupId: string) => {
+      if (!currentUser || !isConnected) return
+
+      socketService.leaveChatGroup(chatGroupId)
+    },
+    [currentUser, isConnected]
+  )
+
+  const deleteChatGroup = useCallback(
+    (chatGroupId: string) => {
+      if (!currentUser || !isConnected) return
+
+      socketService.deleteChatGroup(chatGroupId)
+    },
+    [currentUser, isConnected]
+  )
+
   return (
     <ChatContext.Provider
       value={{
         contacts,
         selectedContact,
         messages,
+        chatGroups,
+        selectedChatGroup,
+        chatGroupMessages,
         isConnected,
         typingUsers,
         selectContact,
+        selectChatGroup,
         sendMessage,
+        sendChatGroupMessage,
+        createChatGroup,
+        updateChatGroupName,
+        leaveChatGroup,
+        deleteChatGroup,
         refreshContacts,
+        refreshChatGroups,
       }}
     >
       {children}

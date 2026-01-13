@@ -1,12 +1,37 @@
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
-import type { ChatMessage, RTCSessionDescriptionInit, RTCIceCandidateInit } from '@ucaas/shared'
+import type {
+  ChatMessage,
+  RTCSessionDescriptionInit,
+  RTCIceCandidateInit,
+  MessageReaction,
+  ChatGroup,
+  ChatGroupMessage,
+  ChatGroupMember,
+} from '@ucaas/shared'
 
 type MessageCallback = (message: ChatMessage) => void
 type TypingCallback = (fromUserId: string, isTyping: boolean) => void
 type StatusCallback = (userId: string, status: string | undefined) => void
 type ConnectionCallback = (connected: boolean) => void
 type OnlineUsersCallback = (userIds: string[]) => void
+type ReactionUpdatedCallback = (data: {
+  messageId: string
+  reactions: MessageReaction[]
+  action: 'added' | 'removed'
+  userId: string
+  emoji: string
+}) => void
+
+// Chat group callbacks
+type ChatGroupCreatedCallback = (chatGroup: ChatGroup) => void
+type ChatGroupMessageCallback = (message: ChatGroupMessage) => void
+type ChatGroupUpdatedCallback = (chatGroup: ChatGroup) => void
+type ChatGroupMemberAddedCallback = (data: { chatGroupId: string; member: ChatGroupMember }) => void
+type ChatGroupMemberRemovedCallback = (data: { chatGroupId: string; userId: string }) => void
+type ChatGroupMemberLeftCallback = (data: { chatGroupId: string; userId: string }) => void
+type ChatGroupLeftCallback = (data: { chatGroupId: string }) => void
+type ChatGroupDeletedCallback = (data: { chatGroupId: string }) => void
 
 // Call-related callbacks
 type CallIncomingCallback = (call: { callId: string; fromUserId: string; fromName: string; fromExtension: string }) => void
@@ -27,6 +52,17 @@ class SocketService {
   private statusCallbacks: StatusCallback[] = []
   private connectionCallbacks: ConnectionCallback[] = []
   private onlineUsersCallbacks: OnlineUsersCallback[] = []
+  private reactionCallbacks: ReactionUpdatedCallback[] = []
+
+  // Chat group callbacks
+  private chatGroupCreatedCallbacks: ChatGroupCreatedCallback[] = []
+  private chatGroupMessageCallbacks: ChatGroupMessageCallback[] = []
+  private chatGroupUpdatedCallbacks: ChatGroupUpdatedCallback[] = []
+  private chatGroupMemberAddedCallbacks: ChatGroupMemberAddedCallback[] = []
+  private chatGroupMemberRemovedCallbacks: ChatGroupMemberRemovedCallback[] = []
+  private chatGroupMemberLeftCallbacks: ChatGroupMemberLeftCallback[] = []
+  private chatGroupLeftCallbacks: ChatGroupLeftCallback[] = []
+  private chatGroupDeletedCallbacks: ChatGroupDeletedCallback[] = []
 
   // Call-related callbacks
   private callIncomingCallbacks: CallIncomingCallback[] = []
@@ -160,6 +196,130 @@ class SocketService {
     }
 
     this.socket.emit('conversation:load', { withUserId, limit })
+  }
+
+  /**
+   * Toggle reaction on a message
+   */
+  toggleReaction(messageId: string, emoji: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot toggle reaction')
+      return
+    }
+
+    this.socket.emit('reaction:toggle', { messageId, emoji })
+  }
+
+  // ============================================================================
+  // CHAT GROUP METHODS
+  // ============================================================================
+
+  /**
+   * Create a new chat group
+   */
+  createChatGroup(name: string, memberIds: string[]): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot create chat group')
+      return
+    }
+
+    this.socket.emit('chatgroup:create', { name, memberIds })
+  }
+
+  /**
+   * Send message to a chat group
+   */
+  sendChatGroupMessage(chatGroupId: string, content: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot send chat group message')
+      return
+    }
+
+    this.socket.emit('chatgroup:message:send', { chatGroupId, content })
+  }
+
+  /**
+   * Mark chat group messages as read
+   */
+  markChatGroupMessagesAsRead(chatGroupId: string, upToMessageId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot mark messages as read')
+      return
+    }
+
+    this.socket.emit('chatgroup:messages:read', { chatGroupId, upToMessageId })
+  }
+
+  /**
+   * Load chat group message history
+   */
+  loadChatGroupMessages(chatGroupId: string, limit?: number, before?: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot load chat group messages')
+      return
+    }
+
+    this.socket.emit('chatgroup:messages:load', { chatGroupId, limit, before })
+  }
+
+  /**
+   * Update chat group name (admin only)
+   */
+  updateChatGroupName(chatGroupId: string, name: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot update chat group name')
+      return
+    }
+
+    this.socket.emit('chatgroup:update:name', { chatGroupId, name })
+  }
+
+  /**
+   * Add member to chat group (admin only)
+   */
+  addChatGroupMember(chatGroupId: string, newUserId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot add chat group member')
+      return
+    }
+
+    this.socket.emit('chatgroup:member:add', { chatGroupId, newUserId })
+  }
+
+  /**
+   * Remove member from chat group (admin only)
+   */
+  removeChatGroupMember(chatGroupId: string, removeUserId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot remove chat group member')
+      return
+    }
+
+    this.socket.emit('chatgroup:member:remove', { chatGroupId, removeUserId })
+  }
+
+  /**
+   * Leave a chat group
+   */
+  leaveChatGroup(chatGroupId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot leave chat group')
+      return
+    }
+
+    this.socket.emit('chatgroup:leave', { chatGroupId })
+  }
+
+  /**
+   * Delete a chat group (admin only)
+   */
+  deleteChatGroup(chatGroupId: string): void {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot delete chat group')
+      return
+    }
+
+    this.socket.emit('chatgroup:delete', { chatGroupId })
   }
 
   /**
@@ -319,6 +479,96 @@ class SocketService {
   }
 
   /**
+   * Subscribe to reaction updates
+   */
+  onReactionUpdated(callback: ReactionUpdatedCallback): () => void {
+    this.reactionCallbacks.push(callback)
+    return () => {
+      this.reactionCallbacks = this.reactionCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group created
+   */
+  onChatGroupCreated(callback: ChatGroupCreatedCallback): () => void {
+    this.chatGroupCreatedCallbacks.push(callback)
+    return () => {
+      this.chatGroupCreatedCallbacks = this.chatGroupCreatedCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group messages
+   */
+  onChatGroupMessage(callback: ChatGroupMessageCallback): () => void {
+    this.chatGroupMessageCallbacks.push(callback)
+    return () => {
+      this.chatGroupMessageCallbacks = this.chatGroupMessageCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group updates
+   */
+  onChatGroupUpdated(callback: ChatGroupUpdatedCallback): () => void {
+    this.chatGroupUpdatedCallbacks.push(callback)
+    return () => {
+      this.chatGroupUpdatedCallbacks = this.chatGroupUpdatedCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group member added
+   */
+  onChatGroupMemberAdded(callback: ChatGroupMemberAddedCallback): () => void {
+    this.chatGroupMemberAddedCallbacks.push(callback)
+    return () => {
+      this.chatGroupMemberAddedCallbacks = this.chatGroupMemberAddedCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group member removed
+   */
+  onChatGroupMemberRemoved(callback: ChatGroupMemberRemovedCallback): () => void {
+    this.chatGroupMemberRemovedCallbacks.push(callback)
+    return () => {
+      this.chatGroupMemberRemovedCallbacks = this.chatGroupMemberRemovedCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group member left
+   */
+  onChatGroupMemberLeft(callback: ChatGroupMemberLeftCallback): () => void {
+    this.chatGroupMemberLeftCallbacks.push(callback)
+    return () => {
+      this.chatGroupMemberLeftCallbacks = this.chatGroupMemberLeftCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group left
+   */
+  onChatGroupLeft(callback: ChatGroupLeftCallback): () => void {
+    this.chatGroupLeftCallbacks.push(callback)
+    return () => {
+      this.chatGroupLeftCallbacks = this.chatGroupLeftCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
+   * Subscribe to chat group deleted
+   */
+  onChatGroupDeleted(callback: ChatGroupDeletedCallback): () => void {
+    this.chatGroupDeletedCallbacks.push(callback)
+    return () => {
+      this.chatGroupDeletedCallbacks = this.chatGroupDeletedCallbacks.filter((cb) => cb !== callback)
+    }
+  }
+
+  /**
    * Subscribe to incoming calls
    */
   onCallIncoming(callback: CallIncomingCallback): () => void {
@@ -465,6 +715,53 @@ class SocketService {
     this.socket.on('messages:read', ({ byUserId }: { byUserId: string }) => {
       console.log(`Messages read by ${byUserId}`)
       // Could trigger UI update to show read receipts
+    })
+
+    // Reaction updated
+    this.socket.on('reaction:updated', (data: { messageId: string; reactions: MessageReaction[]; action: 'added' | 'removed'; userId: string; emoji: string }) => {
+      console.log(`Reaction ${data.action} on message ${data.messageId}`)
+      this.reactionCallbacks.forEach((cb) => cb(data))
+    })
+
+    // Chat group events
+    this.socket.on('chatgroup:created', (chatGroup: ChatGroup) => {
+      console.log(`Chat group created: ${chatGroup.id}`)
+      this.chatGroupCreatedCallbacks.forEach((cb) => cb(chatGroup))
+    })
+
+    this.socket.on('chatgroup:message:receive', (message: ChatGroupMessage) => {
+      console.log(`Chat group message received: ${message.id}`)
+      this.chatGroupMessageCallbacks.forEach((cb) => cb(message))
+    })
+
+    this.socket.on('chatgroup:updated', (chatGroup: ChatGroup) => {
+      console.log(`Chat group updated: ${chatGroup.id}`)
+      this.chatGroupUpdatedCallbacks.forEach((cb) => cb(chatGroup))
+    })
+
+    this.socket.on('chatgroup:member:added', (data: { chatGroupId: string; member: ChatGroupMember }) => {
+      console.log(`Member added to chat group ${data.chatGroupId}`)
+      this.chatGroupMemberAddedCallbacks.forEach((cb) => cb(data))
+    })
+
+    this.socket.on('chatgroup:member:removed', (data: { chatGroupId: string; userId: string }) => {
+      console.log(`Member removed from chat group ${data.chatGroupId}`)
+      this.chatGroupMemberRemovedCallbacks.forEach((cb) => cb(data))
+    })
+
+    this.socket.on('chatgroup:member:left', (data: { chatGroupId: string; userId: string }) => {
+      console.log(`Member left chat group ${data.chatGroupId}`)
+      this.chatGroupMemberLeftCallbacks.forEach((cb) => cb(data))
+    })
+
+    this.socket.on('chatgroup:left', (data: { chatGroupId: string }) => {
+      console.log(`You left chat group ${data.chatGroupId}`)
+      this.chatGroupLeftCallbacks.forEach((cb) => cb(data))
+    })
+
+    this.socket.on('chatgroup:deleted', (data: { chatGroupId: string }) => {
+      console.log(`Chat group deleted: ${data.chatGroupId}`)
+      this.chatGroupDeletedCallbacks.forEach((cb) => cb(data))
     })
 
     // Error handling

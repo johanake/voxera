@@ -15,7 +15,11 @@
       "Bash(docker compose:*)",
       "Bash(docker-compose up:*)",
       "Bash(docker-compose ps:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "WebSearch"
     ]
   }
 }

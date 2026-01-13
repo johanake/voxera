@@ -31,9 +31,15 @@ model User {
   deletedBy     String?   @map("deleted_by")
 
   // Relations
-  chatsSent     ChatMessage[] @relation("ChatSender")
-  chatsReceived ChatMessage[] @relation("ChatReceiver")
-  callHistory   CallHistory[]
+  chatsSent               ChatMessage[]            @relation("ChatSender")
+  chatsReceived           ChatMessage[]            @relation("ChatReceiver")
+  messageReactions        MessageReaction[]        @relation("MessageReactions")
+  chatGroupsCreated       ChatGroup[]              @relation("ChatGroupCreator")
+  chatGroupMemberships    ChatGroupMember[]        @relation("ChatGroupMemberships")
+  chatGroupMessagesSent   ChatGroupMessage[]       @relation("ChatGroupMessageSender")
+  chatGroupMessagesRead   ChatGroupMessageRead[]   @relation("ChatGroupMessageReads")
+  callHistory             CallHistory[]
+  phoneNumbers            PhoneNumber[]
 
   @@index([customerId])
   @@index([email])
@@ -68,12 +74,112 @@ model ChatMessage {
   read       Boolean  @default(false)
 
   // Relations
-  sender     User     @relation("ChatSender", fields: [fromUserId], references: [id], onDelete: Cascade)
-  receiver   User     @relation("ChatReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  sender     User              @relation("ChatSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  receiver   User              @relation("ChatReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  reactions  MessageReaction[]
 
   @@index([fromUserId, toUserId])
   @@index([timestamp])
   @@map("chat_messages")
+}
+
+model MessageReaction {
+  id                 String            @id @default(cuid())
+  messageId          String?           @map("message_id")
+  chatGroupMessageId String?           @map("chat_group_message_id")
+  userId             String            @map("user_id")
+  emoji              String            // One of: 👍 ❤️ 😂 😮 😢 🎉
+  timestamp          DateTime          @default(now())
+
+  // Relations
+  message            ChatMessage?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chatGroupMessage   ChatGroupMessage? @relation(fields: [chatGroupMessageId], references: [id], onDelete: Cascade)
+  user               User              @relation("MessageReactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@unique([chatGroupMessageId, userId, emoji])
+  @@index([messageId])
+  @@index([chatGroupMessageId])
+  @@index([userId])
+  @@map("message_reactions")
+}
+
+// Chat Groups
+model ChatGroup {
+  id           String             @id @default(cuid())
+  name         String
+  createdBy    String             @map("created_by")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+  deletedAt    DateTime?          @map("deleted_at")
+  lastActivity DateTime           @default(now()) @map("last_activity")
+
+  // Relations
+  creator      User               @relation("ChatGroupCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  members      ChatGroupMember[]
+  messages     ChatGroupMessage[]
+
+  @@index([createdBy])
+  @@index([deletedAt])
+  @@index([lastActivity])
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  id          String              @id @default(cuid())
+  chatGroupId String              @map("chat_group_id")
+  userId      String              @map("user_id")
+  role        ChatGroupMemberRole
+  joinedAt    DateTime            @default(now()) @map("joined_at")
+  leftAt      DateTime?           @map("left_at")
+
+  // Relations
+  chatGroup   ChatGroup           @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  user        User                @relation("ChatGroupMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatGroupId, userId])
+  @@index([userId])
+  @@index([chatGroupId, leftAt])
+  @@map("chat_group_members")
+}
+
+enum ChatGroupMemberRole {
+  admin
+  member
+}
+
+model ChatGroupMessage {
+  id          String                    @id @default(cuid())
+  chatGroupId String                    @map("chat_group_id")
+  fromUserId  String                    @map("from_user_id")
+  content     String                    @db.Text
+  timestamp   DateTime                  @default(now())
+
+  // Relations
+  chatGroup   ChatGroup                 @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+  sender      User                      @relation("ChatGroupMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  reactions   MessageReaction[]
+  readBy      ChatGroupMessageRead[]
+
+  @@index([chatGroupId, timestamp])
+  @@index([fromUserId])
+  @@map("chat_group_messages")
+}
+
+model ChatGroupMessageRead {
+  id        String           @id @default(cuid())
+  messageId String           @map("message_id")
+  userId    String           @map("user_id")
+  readAt    DateTime         @default(now()) @map("read_at")
+
+  // Relations
+  message   ChatGroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User             @relation("ChatGroupMessageReads", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([messageId])
+  @@map("chat_group_message_reads")
 }
 
 // ============================================================================
@@ -90,15 +196,123 @@ model CallHistory {
   duration          Int?          // Duration in seconds
   answered          Boolean       @default(false)
 
+  // PSTN-specific fields
+  callType          CallType      @default(internal) @map("call_type")
+  phoneNumber       String?       @map("phone_number")
+  twilioCallSid     String?       @unique @map("twilio_call_sid")
+  twilioStatus      String?       @map("twilio_status")
+  recordingUrl      String?       @map("recording_url")
+
   // Relations
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([timestamp])
+  @@index([twilioCallSid])
   @@map("call_history")
 }
 
 enum CallDirection {
   inbound
   outbound
+}
+
+enum CallType {
+  internal        // Extension to extension (WebRTC)
+  pstn_inbound    // PSTN to extension (via Twilio)
+  pstn_outbound   // Extension to PSTN (via Twilio)
+}
+
+// ============================================================================
+// PHONE NUMBERS & ROUTING
+// ============================================================================
+
+model PhoneNumber {
+  id              String            @id @default(cuid())
+  customerId      String            @map("customer_id")
+  number          String            @unique // E.164 format (e.g., +14155551234)
+  type            PhoneNumberType
+  status          PhoneNumberStatus
+  country         String
+  region          String?
+  assignmentType  AssignmentType    @default(unassigned) @map("assignment_type")
+  assignedToId    String?           @map("assigned_to_id")
+  assignedToName  String?           @map("assigned_to_name")
+  monthlyFee      Decimal           @default(0) @db.Decimal(10, 2) @map("monthly_fee")
+  currency        String            @default("USD")
+  twilioSid       String?           @unique @map("twilio_sid")
+  purchasedAt     DateTime?         @map("purchased_at")
+  activatedAt     DateTime?         @map("activated_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  assignedUser    User?             @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  routingRules    PBXRoutingRule[]
+
+  @@index([customerId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([number])
+  @@map("phone_numbers")
+}
+
+enum PhoneNumberType {
+  mobile
+  geographic
+  toll_free
+  national
+  premium
+}
+
+enum PhoneNumberStatus {
+  active
+  reserved
+  pending
+  porting
+  cancelled
+}
+
+enum AssignmentType {
+  user
+  pbx
+  ivr
+  unassigned
+}
+
+model PBXRoutingRule {
+  id            String            @id @default(cuid())
+  customerId    String            @map("customer_id")
+  phoneNumberId String            @map("phone_number_id")
+  name          String
+  priority      Int               @default(0)
+  enabled       Boolean           @default(true)
+
+  // Conditions stored as JSON for flexibility
+  // Example: { "timeRanges": [{"start": "09:00", "end": "17:00"}], "callerIds": ["+1555..."], "daysOfWeek": [1,2,3,4,5] }
+  conditions    Json              @default("{}")
+
+  // Target configuration
+  targetType    RoutingTargetType @map("target_type")
+  targetUserId  String?           @map("target_user_id")
+  targetIVRId   String?           @map("target_ivr_id")
+  fallbackAction String?          @map("fallback_action") // "busy", "voicemail", "forward"
+
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  phoneNumber   PhoneNumber       @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+
+  @@index([phoneNumberId, priority])
+  @@index([customerId])
+  @@index([enabled])
+  @@map("pbx_routing_rules")
+}
+
+enum RoutingTargetType {
+  user
+  ivr
+  voicemail
+  external
 }

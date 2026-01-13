@@ -1,4 +1,4 @@
-import type { CallState } from '@ucaas/shared'
+import type { CallState, PSTNCallSession } from '@ucaas/shared'
 
 export interface CallSession {
   callId: string
@@ -14,6 +14,10 @@ export class CallStorage {
   private activeCalls: Map<string, CallSession> = new Map()
   private extensionToUser: Map<string, string> = new Map()
   private userToExtension: Map<string, string> = new Map()
+
+  // PSTN call tracking
+  private pstnCalls: Map<string, PSTNCallSession> = new Map()
+  private sidToCallId: Map<string, string> = new Map() // Twilio SID -> Call ID mapping
 
   /**
    * Register user extension mapping
@@ -128,10 +132,22 @@ export class CallStorage {
   }
 
   /**
-   * Check if user is currently in a call
+   * Check if user is currently in a call (internal OR PSTN)
    */
   isUserInCall(userId: string): boolean {
-    return this.getUserActiveCall(userId) !== undefined
+    // Check internal calls
+    if (this.getUserActiveCall(userId) !== undefined) {
+      return true
+    }
+
+    // Check PSTN calls
+    for (const pstnCall of this.pstnCalls.values()) {
+      if (pstnCall.toUserId === userId) {
+        return true
+      }
+    }
+
+    return false
   }
 
   /**
@@ -144,10 +160,99 @@ export class CallStorage {
   /**
    * Get extension stats (for debugging)
    */
-  getExtensionStats(): { totalExtensions: number; activeCalls: number } {
+  getExtensionStats(): { totalExtensions: number; activeCalls: number; pstnCalls: number } {
     return {
       totalExtensions: this.extensionToUser.size,
       activeCalls: this.activeCalls.size,
+      pstnCalls: this.pstnCalls.size,
     }
+  }
+
+  // ============================================================================
+  // PSTN CALL METHODS
+  // ============================================================================
+
+  /**
+   * Create a PSTN call session
+   */
+  createPSTNCall(params: {
+    callId: string
+    twilioCallSid: string
+    fromNumber: string
+    toExtension: string
+    toUserId: string
+  }): PSTNCallSession {
+    const session: PSTNCallSession = {
+      ...params,
+      state: 'ringing',
+      createdAt: new Date(),
+    }
+
+    this.pstnCalls.set(params.callId, session)
+    this.sidToCallId.set(params.twilioCallSid, params.callId)
+    console.log(
+      `Created PSTN call: ${params.callId} (${params.fromNumber} → ${params.toExtension})`
+    )
+
+    return session
+  }
+
+  /**
+   * Get PSTN call by call ID
+   */
+  getPSTNCall(callId: string): PSTNCallSession | undefined {
+    return this.pstnCalls.get(callId)
+  }
+
+  /**
+   * Get PSTN call by Twilio SID
+   */
+  getCallBySid(twilioCallSid: string): PSTNCallSession | undefined {
+    const callId = this.sidToCallId.get(twilioCallSid)
+    return callId ? this.pstnCalls.get(callId) : undefined
+  }
+
+  /**
+   * Update PSTN call state
+   */
+  updatePSTNCallState(callId: string, state: CallState): void {
+    const call = this.pstnCalls.get(callId)
+    if (call) {
+      call.state = state
+      console.log(`Updated PSTN call ${callId} state to ${state}`)
+    }
+  }
+
+  /**
+   * End PSTN call and remove from active calls
+   */
+  endPSTNCall(callId: string): PSTNCallSession | null {
+    const call = this.pstnCalls.get(callId)
+    if (call) {
+      this.pstnCalls.delete(callId)
+      this.sidToCallId.delete(call.twilioCallSid)
+      console.log(`Ended PSTN call: ${callId}`)
+      return call
+    }
+    return null
+  }
+
+  /**
+   * Get all PSTN calls (for debugging)
+   */
+  getAllPSTNCalls(): PSTNCallSession[] {
+    return Array.from(this.pstnCalls.values())
+  }
+
+  /**
+   * Get user's active PSTN call
+   */
+  getUserActivePSTNCall(userId: string): PSTNCallSession | undefined {
+    for (const call of this.pstnCalls.values()) {
+      if (call.toUserId === userId) {
+        return call
+      }
+    }
+    return undefined
   }
 }

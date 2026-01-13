@@ -27,6 +27,10 @@ export class ChatService {
     return this.chatRepository.getConversation(userId1, userId2, limit)
   }
 
+  async getMessage(messageId: string) {
+    return this.chatRepository.getById(messageId)
+  }
+
   async markAsRead(fromUserId: string, toUserId: string): Promise<void> {
     // Update in database
     await this.chatRepository.markAsRead(fromUserId, toUserId)

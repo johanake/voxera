@@ -4,10 +4,19 @@ import { useChat } from '../../contexts/ChatContext'
 import { socketService } from '../../services/socketService'
 
 const MessageInput: FC = () => {
-  const { selectedContact, sendMessage, isConnected } = useChat()
+  const {
+    selectedContact,
+    selectedChatGroup,
+    sendMessage,
+    sendChatGroupMessage,
+    isConnected,
+  } = useChat()
   const [message, setMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const typingTimeoutRef = useRef<number | null>(null)
+
+  const isGroupChat = !!selectedChatGroup
+  const canSend = selectedContact || selectedChatGroup
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -46,10 +55,10 @@ const MessageInput: FC = () => {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
 
-    if (!message.trim() || !selectedContact) return
+    if (!message.trim() || !canSend) return
 
-    // Stop typing indicator
-    if (isTyping) {
+    // Stop typing indicator (only for 1-on-1)
+    if (isTyping && selectedContact) {
       setIsTyping(false)
       socketService.stopTyping(selectedContact.userId)
       if (typingTimeoutRef.current) {
@@ -57,15 +66,23 @@ const MessageInput: FC = () => {
       }
     }
 
-    sendMessage(message.trim())
+    // Send message based on chat type
+    if (isGroupChat && selectedChatGroup) {
+      sendChatGroupMessage(selectedChatGroup.chatGroupId, message.trim())
+    } else if (selectedContact) {
+      sendMessage(message.trim())
+    }
+
     setMessage('')
   }
 
-  const placeholder = selectedContact
+  const placeholder = canSend
     ? isConnected
-      ? 'Type a message...'
+      ? isGroupChat
+        ? `Message ${selectedChatGroup?.name}...`
+        : 'Type a message...'
       : 'Offline - message will be sent when reconnected'
-    : 'Select a contact to start chatting'
+    : 'Select a contact or group to start chatting'
 
   return (
     <div className="px-6 py-4 border-t border-gray-200 bg-white">
@@ -75,12 +92,12 @@ const MessageInput: FC = () => {
           value={message}
           onChange={handleInputChange}
           placeholder={placeholder}
-          disabled={!selectedContact}
+          disabled={!canSend}
           className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
         />
         <button
           type="submit"
-          disabled={!selectedContact || !message.trim()}
+          disabled={!canSend || !message.trim()}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
         >
           Send

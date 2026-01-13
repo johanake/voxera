@@ -24,3 +24,6 @@ export type { PaginationProps } from './Pagination'
 
 export { default as Dropdown } from './Dropdown'
 export type { DropdownProps, DropdownItem } from './Dropdown'
+
+export { default as Toast } from './Toast'
+export type { ToastProps, Toast as ToastType, ToastType as ToastTypeEnum } from './Toast'
