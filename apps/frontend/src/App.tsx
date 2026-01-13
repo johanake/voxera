@@ -6,17 +6,6 @@ import Licenses from './pages/Licenses'
 import Numbers from './pages/Numbers'
 import PBX from './pages/PBX'
 
-function ComingSoon() {
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Coming Soon</h2>
-        <p className="text-gray-600">This page is under construction.</p>
-      </div>
-    </div>
-  )
-}
-
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const location = useLocation()
   const isActive = location.pathname === to
@@ -52,7 +41,6 @@ function Layout() {
                 <NavLink to="/licenses">Licenses</NavLink>
                 <NavLink to="/numbers">Numbers</NavLink>
                 <NavLink to="/pbx">PBX</NavLink>
-                <NavLink to="/ivr">IVR</NavLink>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -80,7 +68,6 @@ function Layout() {
           <Route path="/licenses" element={<Licenses />} />
           <Route path="/numbers" element={<Numbers />} />
           <Route path="/pbx" element={<PBX />} />
-          <Route path="/ivr" element={<ComingSoon />} />
         </Routes>
       </main>
     </div>

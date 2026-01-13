@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Voxera is a Unified Communications as a Service (UCaaS) platform built as a TypeScript monorepo. The platform provides comprehensive management of users, licenses, phone numbers, PBX systems, and IVR flows for telecommunications services.
+Voxera is a Unified Communications as a Service (UCaaS) platform built as a TypeScript monorepo. The platform provides comprehensive management of users, licenses, phone numbers, and PBX systems (including IVR flows) for telecommunications services.
 
 ## Technology Stack
 
@@ -341,11 +341,14 @@ import type { InputHTMLAttributes } from 'react'
 
 ### 5. PBX Page
 **Route**: `/pbx`
-**Status**: Coming Soon placeholder
+**File**: `apps/frontend/src/pages/PBX.tsx`
 
-### 6. IVR Page
-**Route**: `/ivr`
-**Status**: Coming Soon placeholder
+**Features**:
+- Visual flow builder for call routing
+- IVR menu configuration (integrated within PBX)
+- Extension management
+- Queue system management
+- Drag-and-drop node-based interface
 
 ## UCaaS Client Application
 
@@ -531,8 +534,7 @@ The UCaaS Client is a separate application for end-users providing real-time com
 /users → Users
 /licenses → Licenses
 /numbers → Numbers
-/pbx → Coming Soon
-/ivr → Coming Soon
+/pbx → PBX (with IVR flow builder)
 ```
 
 ## Design Patterns
@@ -918,9 +920,8 @@ pnpm build  # Builds all packages recursively
 1. **Connect admin frontend to backend API** - Replace mock data with real API calls
 2. **Implement authentication & authorization** - JWT tokens, protected routes, role-based access
 3. **Connect admin frontend users page to database** - Replace mock CRUD with API calls
-4. **Build PBX page** - Extension management, call routing rules
-5. **Build IVR page** - Visual flow builder for interactive voice response
-6. **Add authentication to Socket.io** - Secure WebSocket connections
+4. **Enhance PBX page** - Backend API for saving/loading PBX flows, extension management
+5. **Add authentication to Socket.io** - Secure WebSocket connections
 
 ### Medium Priority
 7. **Add error boundaries** - Graceful error handling in React apps
@@ -1271,13 +1272,13 @@ The Voxera UCaaS platform is a **full-stack, production-ready** unified communic
 ### 🚧 In Progress
 - Connecting admin frontend to backend API
 - Authentication & authorization (JWT)
-- PBX and IVR pages
+- PBX backend integration
 
 ### 📊 Codebase Stats
 - **22** Backend TypeScript files
 - **10** UI components
 - **2** Real-time pages (WebChat + Softphone)
-- **4** Admin pages
+- **5** Admin pages (Dashboard, Users, Licenses, Numbers, PBX)
 - **5** Custom React hooks
 - **3** Database models
 - **Multiple** Socket.io event handlers
