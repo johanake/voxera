@@ -76,7 +76,7 @@ const ContactsList: FC = () => {
               </h3>
               <button
                 onClick={() => setShowCreateGroupModal(true)}
-                className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
+                className="text-primary-500 hover:text-primary-600 p-1 rounded hover:bg-primary-50 transition-colors"
                 title="Create new group"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@ const ContactsList: FC = () => {
                   key={group.chatGroupId}
                   onClick={() => selectChatGroup(group.chatGroupId)}
                   className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                    selectedChatGroup?.chatGroupId === group.chatGroupId ? 'bg-blue-50' : ''
+                    selectedChatGroup?.chatGroupId === group.chatGroupId ? 'bg-primary-50' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-3">
@@ -180,13 +180,13 @@ const ContactsList: FC = () => {
                 key={contact.userId}
                 onClick={() => selectContact(contact.userId)}
                 className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                  selectedContact?.userId === contact.userId ? 'bg-blue-50' : ''
+                  selectedContact?.userId === contact.userId ? 'bg-primary-50' : ''
                 }`}
               >
                 <div className="flex items-start space-x-3">
                   {/* Avatar */}
                   <div className="relative flex-shrink-0">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                    <div className="w-10 h-10 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center text-white font-semibold">
                       {contact.name.split(' ').map((n) => n[0]).join('')}
                     </div>
                     <div
@@ -211,14 +211,14 @@ const ContactsList: FC = () => {
 
                     <div className="flex items-center justify-between mt-1">
                       {contact.isTyping ? (
-                        <p className="text-sm text-blue-500 italic">typing...</p>
+                        <p className="text-sm text-primary-500 italic">typing...</p>
                       ) : (
                         <p className="text-sm text-gray-600 truncate">
                           {contact.lastMessage?.content || 'No messages yet'}
                         </p>
                       )}
                       {contact.unreadCount > 0 && (
-                        <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
+                        <span className="ml-2 flex-shrink-0 w-5 h-5 bg-primary-300 text-white text-xs rounded-full flex items-center justify-center">
                           {contact.unreadCount}
                         </span>
                       )}

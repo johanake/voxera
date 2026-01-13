@@ -103,14 +103,14 @@ const formatTime = (date: string | Date) => {
                   <div
                     className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                       isCurrentUser
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-primary-300 text-white'
                         : 'bg-gray-200 text-gray-900'
                     }`}
                   >
                     <p className="text-sm break-words">{message.content}</p>
                     <p
                       className={`text-xs mt-1 ${
-                        isCurrentUser ? 'text-blue-100' : 'text-gray-500'
+                        isCurrentUser ? 'text-primary-50' : 'text-gray-500'
                       }`}
                     >
                       {formatTime(message.timestamp)}

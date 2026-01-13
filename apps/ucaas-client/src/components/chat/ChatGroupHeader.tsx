@@ -71,7 +71,7 @@ export const ChatGroupHeader: FC<ChatGroupHeaderProps> = ({
               />
               <button
                 onClick={handleSaveName}
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                className="px-3 py-1 bg-primary-300 text-white rounded hover:bg-primary-400 transition-colors text-sm"
               >
                 Save
               </button>
@@ -155,7 +155,7 @@ export const ChatGroupHeader: FC<ChatGroupHeaderProps> = ({
           {chatGroup.members.slice(0, 5).map((member) => (
             <div
               key={member.id}
-              className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium border-2 border-white"
+              className="w-8 h-8 bg-primary-300 rounded-full flex items-center justify-center text-white text-xs font-medium border-2 border-white"
               title={`${member.user?.firstName} ${member.user?.lastName}`}
             >
               {member.user?.firstName?.[0]}{member.user?.lastName?.[0]}

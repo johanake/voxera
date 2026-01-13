@@ -73,7 +73,7 @@ export const MessageReactions: FC<MessageReactionsProps> = ({
           onClick={() => onReactionToggle(emoji)}
           className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
             hasUserReacted(emoji)
-              ? 'bg-blue-100 border-blue-300 border'
+              ? 'bg-primary-50 border-primary-300 border'
               : 'bg-gray-100 border-gray-200 border hover:bg-gray-200'
           }`}
           title={getUserNames(emojiReactions)}
@@ -109,7 +109,7 @@ export const MessageReactions: FC<MessageReactionsProps> = ({
                 key={emoji}
                 onClick={() => handleReactionClick(emoji)}
                 className={`w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 transition-colors text-lg ${
-                  hasUserReacted(emoji) ? 'bg-blue-50' : ''
+                  hasUserReacted(emoji) ? 'bg-primary-50' : ''
                 }`}
                 title={emoji}
               >

@@ -60,7 +60,7 @@ const Dialer: FC = () => {
           }}
           onKeyPress={handleKeyPress}
           placeholder="Enter extension"
-          className="w-full px-4 py-3 text-center text-2xl font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          className="w-full px-4 py-3 text-center text-2xl font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:border-primary-300"
         />
         <p className="mt-2 text-xs text-gray-500 text-center">
           {isValidExtension ? 'Ready to call' : 'Enter 3-5 digits'}

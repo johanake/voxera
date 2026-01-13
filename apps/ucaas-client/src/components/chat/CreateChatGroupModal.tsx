@@ -143,7 +143,7 @@ export const CreateChatGroupModal: FC<CreateChatGroupModalProps> = ({
                     key={user.id}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-blue-50 border-2 border-blue-500'
+                        ? 'bg-primary-50 border-2 border-primary-300'
                         : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
                     }`}
                   >
@@ -151,7 +151,7 @@ export const CreateChatGroupModal: FC<CreateChatGroupModalProps> = ({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleUser(user.id)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-primary-300 rounded focus:ring-primary-300"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">
@@ -180,7 +180,7 @@ export const CreateChatGroupModal: FC<CreateChatGroupModalProps> = ({
           <button
             onClick={handleCreate}
             disabled={!groupName.trim() || selectedUserIds.size === 0}
-            className="flex-1 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2 text-white bg-primary-300 rounded-lg hover:bg-primary-400 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             Create Group
           </button>

@@ -28,7 +28,7 @@ const CallHistory: FC = () => {
 
   const getIconColor = (direction: 'inbound' | 'outbound', answered: boolean): string => {
     if (!answered) return 'text-red-500'
-    return direction === 'inbound' ? 'text-green-500' : 'text-blue-500'
+    return direction === 'inbound' ? 'text-green-500' : 'text-primary-500'
   }
 
   const getIcon = (direction: 'inbound' | 'outbound', answered: boolean) => {
@@ -111,7 +111,7 @@ const CallHistory: FC = () => {
                     e.stopPropagation()
                     initiateCall(entry.contactExtension)
                   }}
-                  className="ml-2 p-2 text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="ml-2 p-2 text-gray-400 hover:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Call back"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
