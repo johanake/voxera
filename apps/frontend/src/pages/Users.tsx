@@ -266,7 +266,7 @@ const Users = () => {
                 setCurrentPage(1)
               }}
               disabled={loading}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              className="mt-2 text-sm text-primary-500 hover:text-primary-600 disabled:opacity-50"
             >
               Clear filters
             </button>
@@ -294,7 +294,7 @@ const Users = () => {
         {/* Loading State */}
         {loading && (
           <div className="px-6 py-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-300"></div>
             <p className="mt-2 text-sm text-gray-500">Loading users...</p>
           </div>
         )}

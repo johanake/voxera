@@ -167,7 +167,7 @@ const PBX = () => {
                 onClick={() => handleTabSelect(system.id)}
                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                   activeSystemId === system.id
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-primary-300 text-primary-500'
                     : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                 }`}
               >

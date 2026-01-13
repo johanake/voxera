@@ -60,7 +60,7 @@ const Dashboard = () => {
       { name: 'PBX Basic - Basic', count: 7, percentage: 14 },
     ],
     numberBreakdown: [
-      { type: 'Mobile', count: 18, color: 'bg-blue-500' },
+      { type: 'Mobile', count: 18, color: 'bg-primary-300' },
       { type: 'Geographic', count: 12, color: 'bg-green-500' },
       { type: 'Toll-Free', count: 6, color: 'bg-purple-500' },
       { type: 'National', count: 2, color: 'bg-yellow-500' },
@@ -112,8 +112,8 @@ const Dashboard = () => {
                   )}
                 </div>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               </div>
@@ -178,15 +178,15 @@ const Dashboard = () => {
         </Link>
 
         {/* Quick Stats Card */}
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100">
+        <Card className="p-6 bg-gradient-to-br from-primary-50 to-primary-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-900">System Health</p>
-              <p className="text-3xl font-bold text-blue-900 mt-1">98.7%</p>
-              <p className="text-xs text-blue-700 mt-2">All services operational</p>
+              <p className="text-sm font-medium text-primary-900">System Health</p>
+              <p className="text-3xl font-bold text-primary-900 mt-1">98.7%</p>
+              <p className="text-xs text-primary-700 mt-2">All services operational</p>
             </div>
-            <div className="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-12 h-12 bg-primary-200 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-primary-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -207,7 +207,7 @@ const Dashboard = () => {
                 <div key={activity.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start space-x-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      activity.type === 'user' ? 'bg-blue-100 text-blue-600' :
+                      activity.type === 'user' ? 'bg-primary-50 text-primary-500' :
                       activity.type === 'license' ? 'bg-green-100 text-green-600' :
                       'bg-purple-100 text-purple-600'
                     }`}>
@@ -242,7 +242,7 @@ const Dashboard = () => {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full"
+                        className="bg-primary-300 h-2 rounded-full"
                         style={{ width: `${item.percentage}%` }}
                       />
                     </div>

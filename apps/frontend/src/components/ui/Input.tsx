@@ -25,7 +25,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             disabled:bg-gray-100 disabled:cursor-not-allowed
             ${error
               ? 'border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500'
-              : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              : 'border-gray-300 focus:ring-primary-300 focus:border-primary-300'
             }
             ${className}
           `}
